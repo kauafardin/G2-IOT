@@ -226,5 +226,48 @@ for _p in T[4].rows[0].cells[0].paragraphs:    # rótulo do campo da Etapa 0
         if 'Desafio (A) ou ideia própria (B)' in _r.text:
             _r.text = _r.text.replace('Desafio (A) ou ideia própria (B)', 'Desafio escolhido')
 
+# ---- evidências (prints) logo depois da Etapa 10
+_head = next(p for p in d.paragraphs if p.text.strip().startswith('ETAPA 10'))
+_cap_model = T[20].rows[1].cells[1].paragraphs[0]
+_prints = [
+    ('docs/prints/01_wokwi_serial_mqtt.png', 4.6,
+     'Wokwi: DHT22 lendo 24 °C e 60 %, Wi-Fi e NTP ok e MQTT conectado ao broker com TLS. O HTTPS do ESP32 ao Worker ainda falha no simulador (SSL EOF), então o ESP32 segue com os limites padrão.'),
+    ('docs/prints/02_emqx_broker_rodando.png', 6.0,
+     'EMQX Serverless: broker "Running", limite de gasto US$ 0,00 e 1 sessão ativa (o ESP32 conectado).'),
+    ('docs/prints/03_emqx_usuarios.png', 6.0,
+     'EMQX: usuários esp32_silo e painel (autenticação por usuário e senha).'),
+    ('docs/prints/04_emqx_permissoes.png', 6.0,
+     'EMQX: permissões por tópico. O ESP32 publica telemetria, estado, ack e alerta e só assina comando; o painel assina tudo e só publica em comando.'),
+    ('docs/prints/05_painel_login.png', 3.0,
+     'Painel publicado no Worker (tela de entrada; as credenciais ficam só na sessão do navegador).'),
+    ('docs/prints/06_cloudflare_worker.png', 6.0,
+     'Cloudflare: Worker silo-graos com D1 (histórico), KV (limites) e Assets (painel) ligados.'),
+]
+_anchor = T[20]._tbl
+_new = []
+_h = copy.deepcopy(_head._p)
+_head2 = Paragraph(_h, _head._parent)
+for _r in _head2.runs[1:]:
+    _r._r.getparent().remove(_r._r)
+_head2.runs[0].text = 'EVIDÊNCIAS (PRINTS)'
+_new.append(_h)
+for _img, _w, _cap in _prints:
+    _pp = copy.deepcopy(_cap_model._p)
+    _pw = Paragraph(_pp, _head._parent)
+    for _r in list(_pw.runs):
+        _r._r.getparent().remove(_r._r)
+    _pw.add_run().add_picture(_img, width=Inches(_w))
+    _new.append(_pp)
+    _cp = copy.deepcopy(_cap_model._p)
+    _pc = Paragraph(_cp, _head._parent)
+    for _r in list(_pc.runs):
+        _r._r.getparent().remove(_r._r)
+    _rr = _pc.add_run(_cap)
+    _rr.font.size = Pt(9)
+    _rr.italic = True
+    _new.append(_cp)
+for _e in reversed(_new):
+    _anchor.addnext(_e)
+
 d.save('docs/Trabalho_N2_Caderno_de_Projeto_Preenchido.docx')
 print('ok')
