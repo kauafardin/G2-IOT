@@ -84,6 +84,8 @@ void salvaEstado() {   // o NVS só grava o que mudou
   prefs.putUInt("modoAte", modoAte);
   prefs.putFloat("ul", umidLiga); prefs.putFloat("ud", umidDesliga);
   prefs.putFloat("tl", tLiga);    prefs.putFloat("td", tDesliga);
+  prefs.putInt("falhas", falhasSeguidas);
+  prefs.putUInt("alerta0", ultimoAlerta[0]); prefs.putUInt("alerta1", ultimoAlerta[1]);
 }
 
 void restauraEstado() {
@@ -93,6 +95,8 @@ void restauraEstado() {
   modoAte = prefs.getUInt("modoAte", 0);
   umidLiga = prefs.getFloat("ul", umidLiga);       umidDesliga = prefs.getFloat("ud", umidDesliga);
   tLiga = prefs.getFloat("tl", tLiga);             tDesliga = prefs.getFloat("td", tDesliga);
+  falhasSeguidas = prefs.getInt("falhas", 0);
+  ultimoAlerta[0] = prefs.getUInt("alerta0", 0);   ultimoAlerta[1] = prefs.getUInt("alerta1", 0);
   Serial.printf("[NVS] estado restaurado: ventilador=%d modo=%d\n", ventLigado, modo);
 }
 
