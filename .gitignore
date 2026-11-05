@@ -1,0 +1,5 @@
+esp32/secrets.h
+worker/node_modules/
+worker/.wrangler/
+worker/.dev.vars
+.env
