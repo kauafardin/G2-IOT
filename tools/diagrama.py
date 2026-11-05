@@ -38,7 +38,7 @@ d.text((W // 2, 24), 'SiloVigia: do sensor ao painel', font=ImageFont.truetype(F
 # dispositivo
 box(40, 150, 330, 150, 'disp', 'DISPOSITIVO', ['DHT22 (GPIO 15)', 'ESP32: decide e age', 'Relé/LED ventilador (GPIO 26)', 'Deep sleep + memória RTC'])
 # rede
-box(520, 70, 340, 120, 'rede', 'REDE', ['Broker EMQX Serverless', 'MQTT/TLS 8883 · WSS 8084', 'usuários + ACL por tópico'])
+box(520, 70, 340, 120, 'rede', 'REDE', ['Broker EMQX Serverless', 'MQTT/TLS 8883 · WSS 8084', 'usuários + ACL + regra webhook'])
 # nuvem
 box(520, 330, 340, 140, 'nuvem', 'NUVEM (Cloudflare)', ['Worker: /api/leituras,', '/api/resumo, /api/config', 'chave X-API-Key'])
 box(1000, 300, 200, 80, 'nuvem', 'D1', ['histórico'])
@@ -46,17 +46,17 @@ box(1000, 410, 200, 80, 'nuvem', 'KV', ['limites, último'])
 # interface
 box(1000, 70, 440, 120, 'ui', 'INTERFACE', ['Painel web (navegador)', 'estado · gráfico · alertas', 'comando assinado (HMAC) + ack'])
 
-seta((370, 190), (520, 130), 'MQTT/TLS 8883\ntelemetria · estado · ack · alerta', (40, 95))
+seta((370, 190), (520, 130), 'MQTT/TLS 8883 · telemetria,\nestado, leitura, ack, alerta, config', (40, 95))
 seta((520, 160), (370, 235), None)
 seta((860, 130), (1000, 130), 'WSS 8084', dupla=True)
-seta((370, 270), (520, 390), 'HTTPS 443\n(leituras, limites)', (360, 340))
+seta((690, 190), (690, 330), 'regra do broker:\nwebhook HTTPS (leituras)', (705, 235))
 seta((860, 400), (1000, 340), None)
 seta((860, 410), (1000, 450), None)
-seta((1220, 190), (860, 350), 'HTTPS: resumo e limites', (1010, 235))
+seta((1220, 190), (860, 350), 'HTTPS: resumo e limites', (1050, 235))
 
 d.text((40, 560), 'Comando: painel → broker (/comando, QoS 1) → fila até o ESP32 acordar → executa → ack → painel mostra "executado".',
        font=f, fill='#222')
-d.text((40, 595), 'O ESP32 decide sozinho: sem internet ele continua ligando/desligando o ventilador e guarda até 48 leituras na RTC.',
+d.text((40, 595), 'O ESP32 só fala MQTT: o broker encaminha as leituras ao Worker (D1). Sem internet ele segue decidindo e guarda até 48 leituras na RTC.',
        font=f, fill='#222')
 for i, (k, t) in enumerate([('disp', 'Dispositivo'), ('rede', 'Rede'), ('nuvem', 'Nuvem'), ('ui', 'Interface')]):
     x = 40 + i * 240
