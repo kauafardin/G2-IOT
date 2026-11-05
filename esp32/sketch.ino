@@ -65,6 +65,8 @@ RTC_DATA_ATTR int      falhasSeguidas = 0;
 RTC_DATA_ATTR uint32_t ultimoAlerta[2] = {0, 0};   // 0=umidade, 1=sensor
 // limites (podem ser alterados pelo Worker/KV; valores iniciais são o plano B offline)
 RTC_DATA_ATTR float umidLiga = 70, umidDesliga = 65, tLiga = 30, tDesliga = 28;
+RTC_DATA_ATTR uint32_t rtcMagic = 0;          // 0 = RTC vazia (energia caiu ou reinício frio): restaura da flash
+const uint32_t RTC_MAGIC = 0xA5C0DE01;
 
 DHT dht(PIN_DHT, DHT22);
 WiFiClientSecure netMqtt;
@@ -73,6 +75,26 @@ Preferences prefs;
 uint64_t ultimoIdComando = 0;
 float tempC = NAN, umidPct = NAN;
 bool leituraOk = false;
+
+// ---------- estado na flash (NVS): sobrevive a reinício frio e queda de energia ----------
+void salvaEstado() {   // o NVS só grava o que mudou
+  prefs.putBool("vent", ventLigado);
+  prefs.putUInt("ventDesde", ventDesde);
+  prefs.putUChar("modo", modo);
+  prefs.putUInt("modoAte", modoAte);
+  prefs.putFloat("ul", umidLiga); prefs.putFloat("ud", umidDesliga);
+  prefs.putFloat("tl", tLiga);    prefs.putFloat("td", tDesliga);
+}
+
+void restauraEstado() {
+  ventLigado = prefs.getBool("vent", false);
+  ventDesde = prefs.getUInt("ventDesde", 0);
+  modo = prefs.getUChar("modo", 0);
+  modoAte = prefs.getUInt("modoAte", 0);
+  umidLiga = prefs.getFloat("ul", umidLiga);       umidDesliga = prefs.getFloat("ud", umidDesliga);
+  tLiga = prefs.getFloat("tl", tLiga);             tDesliga = prefs.getFloat("td", tDesliga);
+  Serial.printf("[NVS] estado restaurado: ventilador=%d modo=%d\n", ventLigado, modo);
+}
 
 // ---------- utilidades ----------
 uint32_t agoraEpoch() { return (uint32_t)time(nullptr); }
@@ -302,6 +324,7 @@ bool conectaWifi() {
 }
 
 void dormir() {
+  salvaEstado();
   mqtt.disconnect();
   WiFi.disconnect(true);
   WiFi.mode(WIFI_OFF);
@@ -318,6 +341,7 @@ void setup() {
   gpio_deep_sleep_hold_dis();
   prefs.begin("silo", false);
   ultimoIdComando = prefs.getULong64("ultimoId", 0);
+  if (rtcMagic != RTC_MAGIC) { restauraEstado(); rtcMagic = RTC_MAGIC; }   // RTC vazia: volta da flash
   dht.begin();
 
   // 1) sentir (DHT22 pode falhar na 1ª leitura: tenta 3 vezes)
