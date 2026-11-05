@@ -86,7 +86,7 @@
         <label>Liga se temperatura &gt; (°C)</label><input id="c-tl" type="number">
         <label>Desliga se temperatura &lt; (°C)</label><input id="c-td" type="number">
         <p><button id="btn-cfg">Salvar limites</button> <span id="cfg-msg" class="mut"></span></p>
-        <div class="mut">O ESP32 lê estes valores a cada despertar. Sem internet, usa os últimos que recebeu.</div>
+        <div class="mut">Ficam no KV e vão ao ESP32 por um tópico MQTT retido, lido a cada despertar. Sem rede, ele usa os últimos que recebeu.</div>
       </div>
     </div>
   </div>
@@ -95,7 +95,7 @@
 <script src="https://cdn.jsdelivr.net/npm/mqtt@5.3.4/dist/mqtt.min.js"></script>
 <script>
 const BASE = "sis1a/kauaheric/silo";
-const T = { tel: BASE+"/telemetria", est: BASE+"/estado", cmd: BASE+"/comando", ack: BASE+"/ack", ale: BASE+"/alerta" };
+const T = { tel: BASE+"/telemetria", est: BASE+"/estado", cmd: BASE+"/comando", ack: BASE+"/ack", ale: BASE+"/alerta", cfg: BASE+"/config" };
 const $ = id => document.getElementById(id);
 let cred = {}, client = null, estado = null, pend = {};
 const fmtHora = ts => new Date(ts*1000).toLocaleTimeString("pt-BR");
@@ -227,9 +227,13 @@ async function carregaConfig() {
   try { const c = await api("/api/config"); $("c-ul").value=c.umid_liga; $("c-ud").value=c.umid_desliga; $("c-tl").value=c.t_liga; $("c-td").value=c.t_desliga; } catch {}
 }
 $("btn-cfg").onclick = async () => {
-  const body = JSON.stringify({ umid_liga:+$("c-ul").value, umid_desliga:+$("c-ud").value, t_liga:+$("c-tl").value, t_desliga:+$("c-td").value });
-  try { await api("/api/config", { method:"PUT", body }); $("cfg-msg").textContent = "salvo — vale no próximo despertar"; }
-  catch (e) { $("cfg-msg").textContent = "erro: "+e.message; }
+  const cfg = { umid_liga:+$("c-ul").value, umid_desliga:+$("c-ud").value, t_liga:+$("c-tl").value, t_desliga:+$("c-td").value };
+  const body = JSON.stringify(cfg);
+  try {
+    await api("/api/config", { method:"PUT", body });                       // guarda no KV (valida no servidor)
+    client.publish(T.cfg, body, { qos:1, retain:true });                    // o ESP32 lê quando acordar
+    $("cfg-msg").textContent = "salvo — o ESP32 aplica no próximo despertar";
+  } catch (e) { $("cfg-msg").textContent = "erro: "+e.message; }
 };
 </script>
 </body>
