@@ -176,10 +176,10 @@ for _img, _w in (('docs/arquitetura.png', 5.4), ('docs/wokwi_esquematico.png', 4
 # ---- etapa 10 (procedimento; resultados ficam para depois de rodar)
 RES = '☐ Ainda não executado. Preencher após rodar no Wokwi.'
 resultados = [
-    'Funcionando de ponta a ponta: DHT22 lê 24 °C e 60 % → ESP32 decide e publica por MQTT com TLS → regra do EMQX → Worker → D1. Conferido com SELECT no D1: 9 leituras gravadas (média 24 °C e 60 %). O Worker recusa gravação sem chave (HTTP 401). O HTTPS direto do ESP32 ao Worker falhou no simulador (SSL - EOF); por isso o histórico passou a ir pelo broker.',
+    'Funcionando de ponta a ponta: DHT22 lê 24 °C e 60 % → ESP32 decide e publica por MQTT com TLS → regra do EMQX → Worker → D1; o painel mostra a leitura, o resumo do D1 e envia comandos que só viram "executado" com o ack do ESP32. Conferido com SELECT no D1: 9 leituras gravadas (média 24 °C e 60 %). O Worker recusa gravação sem chave (HTTP 401). O HTTPS direto do ESP32 ao Worker falhou no simulador (SSL - EOF); por isso o histórico passou a ir pelo broker.',
     RES,
     'Parcial. Com o HTTPS (versão antiga) falhando, o ESP32 não travou: guardou a leitura na memória, publicou por MQTT e foi dormir. Senha MQTT errada foi recusada pelo broker (rc=4) até corrigirmos. Pendente: remover o sensor e trocar o SSID.',
-    'Parcial. Observado: o ESP32 reiniciou sozinho no primeiro boot (assert, antes de o NTP sincronizar), voltou a operar e fez ciclos de deep sleep de 30 s sem intervenção. Pendente: parar e iniciar a simulação e conferir o id do último comando.',
+    'Observado: o Wokwi reinicia o ESP32 a cada despertar e apagava a memória RTC; por isso o estado (ventilador, modo manual e limites) também é salvo na flash (NVS). Depois do comando "ligar" o Serial mostra, a cada ciclo, "[NVS] estado restaurado: ventilador=1 modo=1" e "Dormindo 30 s (ventilador LIGADO)"; o LED fica aceso. Pendente: conferir o id do último comando após um Stop/Start.',
     'Parcial. A credencial errada no broker foi recusada (rc=4) e o Worker recusa chamadas sem chave (401). Pendente: publicar comando com assinatura errada e reenviar comando antigo.',
     'Parcial. Vários ciclos de 30 s (mais de 2 min de simulação) sem travar e 9 leituras gravadas no D1. Pendente: os 10 min completos e a conferência de que não há leitura repetida.',
 ]
@@ -244,6 +244,10 @@ _prints = [
      'Cloudflare: Worker silo-graos com D1 (histórico), KV (limites) e Assets (painel) ligados.'),
     ('docs/prints/07_emqx_regra_webhook.png', 6.0,
      'EMQX: conector HTTP "Connected" e regra habilitada no tópico leitura. A regra encaminha cada leitura ao Worker (webhook HTTPS com a chave só no broker).'),
+    ('docs/prints/09_painel_comando_executado.png', 6.0,
+     'Painel logado: ventilador LIGADO (modo forçado ligado), dispositivo "Dormindo" com contagem para o próximo despertar e três comandos "ligar" confirmados como "executado" pelo ESP32.'),
+    ('docs/prints/10_wokwi_led_ligado.png', 4.6,
+     'Wokwi: LED do ventilador aceso após o comando e Serial com "[NVS] estado restaurado: ventilador=1 modo=1" (o estado é salvo na flash e volta a cada despertar).'),
     ('docs/prints/08_d1_leituras.png', 6.0,
      'Cloudflare D1: SELECT na tabela leituras mostrando 9 linhas gravadas (média 24 °C e 60 %), vindas do ESP32 pelo MQTT e pela regra do broker.'),
 ]
