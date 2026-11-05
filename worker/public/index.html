@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Silo de Grãos</title>
+<style>
+  :root { --bg:#f5f4ef; --card:#fff; --tx:#1d1d1b; --mut:#6b6a63; --bd:#dcdad0; --ok:#2e7d32; --warn:#b26a00; --bad:#c62828; --acc:#2f6f4f; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#161714; --card:#21231f; --tx:#ecebe4; --mut:#9c9b92; --bd:#383a34; --ok:#6fcf74; --warn:#f0b254; --bad:#ff7b72; --acc:#6fbf94; } }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--tx); font:15px/1.45 system-ui,sans-serif; }
+  main { max-width:960px; margin:0 auto; padding:16px; }
+  h1 { font-size:20px; margin:0 0 4px; } h2 { font-size:15px; margin:0 0 10px; }
+  .sub { color:var(--mut); margin-bottom:16px; }
+  .grid { display:grid; gap:12px; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); }
+  .card { background:var(--card); border:1px solid var(--bd); border-radius:10px; padding:14px; margin-bottom:12px; }
+  .big { font-size:34px; font-weight:600; line-height:1.1; } .mut { color:var(--mut); font-size:13px; }
+  .pill { display:inline-block; padding:2px 10px; border-radius:99px; font-size:13px; border:1px solid var(--bd); }
+  .ok { color:var(--ok); } .warn { color:var(--warn); } .bad { color:var(--bad); }
+  button { font:inherit; padding:8px 14px; border-radius:8px; border:1px solid var(--bd); background:var(--card); color:var(--tx); cursor:pointer; }
+  button.pri { background:var(--acc); color:#fff; border-color:var(--acc); }
+  button:disabled { opacity:.5; cursor:default; }
+  input { font:inherit; padding:8px; border-radius:8px; border:1px solid var(--bd); background:var(--bg); color:var(--tx); width:100%; }
+  label { display:block; font-size:13px; color:var(--mut); margin:8px 0 2px; }
+  table { width:100%; border-collapse:collapse; font-size:13px; } th,td { text-align:right; padding:5px 6px; border-bottom:1px solid var(--bd); } th:first-child,td:first-child { text-align:left; }
+  ul { list-style:none; margin:0; padding:0; } li { padding:6px 0; border-bottom:1px solid var(--bd); font-size:14px; }
+  #login { max-width:420px; margin:40px auto; }
+  svg { width:100%; height:auto; display:block; }
+  .row { display:flex; gap:8px; flex-wrap:wrap; }
+</style>
+</head>
+<body>
+<main>
+  <div id="login" class="card">
+    <h1>Silo de Grãos</h1>
+    <div class="sub">Entre com as credenciais. Nada disso é salvo no código nem no GitHub: fica só nesta aba.</div>
+    <label>Broker MQTT (host, sem https)</label><input id="f-host" autocomplete="off">
+    <label>Porta WebSocket seguro (EMQX: 8084 · HiveMQ: 8884)</label><input id="f-wsport" value="8084" autocomplete="off">
+    <label>Usuário MQTT (painel)</label><input id="f-user" autocomplete="off">
+    <label>Senha MQTT</label><input id="f-pass" type="password" autocomplete="off">
+    <label>Segredo de comando (assina os comandos)</label><input id="f-secret" type="password" autocomplete="off">
+    <label>Chave do painel (Worker)</label><input id="f-key" type="password" autocomplete="off">
+    <p><button class="pri" id="btn-entrar">Entrar</button> <span id="login-erro" class="bad"></span></p>
+  </div>
+
+  <div id="app" hidden>
+    <h1>Silo de Grãos</h1>
+    <div class="sub">Equipe Kauã Fardin e Héric Rian · <span id="conn" class="pill">conectando…</span></div>
+
+    <div id="banner" class="card bad" hidden></div>
+
+    <div class="grid">
+      <div class="card"><h2>Umidade</h2><div class="big" id="v-umid">–</div><div class="mut" id="v-umid-sub"></div></div>
+      <div class="card"><h2>Temperatura</h2><div class="big" id="v-temp">–</div><div class="mut" id="v-temp-sub"></div></div>
+      <div class="card"><h2>Ventilador</h2><div class="big" id="v-vent">–</div><div class="mut" id="v-modo"></div></div>
+      <div class="card"><h2>Dispositivo</h2><div class="big" style="font-size:20px" id="v-disp">–</div><div class="mut" id="v-disp-sub"></div></div>
+    </div>
+
+    <div class="card">
+      <h2>Comando remoto</h2>
+      <div class="row">
+        <button data-cmd="ventilador_ligar">Ligar ventilador</button>
+        <button data-cmd="ventilador_desligar">Desligar ventilador</button>
+        <button data-cmd="ventilador_auto">Voltar ao automático</button>
+      </div>
+      <p class="mut">O silo dorme para poupar bateria: o comando fica na fila do broker e só é executado quando ele acorda. Só aparece “executado” quando o próprio ESP32 confirma.</p>
+      <ul id="cmds"></ul>
+    </div>
+
+    <div class="card">
+      <h2>Umidade nas últimas 24 h (resumo por hora, vindo do D1)</h2>
+      <div id="grafico"></div>
+      <table id="tabela"><thead><tr><th>Hora</th><th>Umid. máx</th><th>Umid. média</th><th>Temp. máx</th><th>Vent. ligado</th></tr></thead><tbody></tbody></table>
+    </div>
+
+    <div class="grid">
+      <div class="card">
+        <h2>Alertas</h2>
+        <div class="mut">Cada tipo de alerta só se repete depois do cooldown do dispositivo.</div>
+        <ul id="alertas"></ul>
+      </div>
+      <div class="card">
+        <h2>Limites do ventilador (guardados no KV)</h2>
+        <label>Liga se umidade &gt; (%)</label><input id="c-ul" type="number">
+        <label>Desliga se umidade &lt; (%)</label><input id="c-ud" type="number">
+        <label>Liga se temperatura &gt; (°C)</label><input id="c-tl" type="number">
+        <label>Desliga se temperatura &lt; (°C)</label><input id="c-td" type="number">
+        <p><button id="btn-cfg">Salvar limites</button> <span id="cfg-msg" class="mut"></span></p>
+        <div class="mut">O ESP32 lê estes valores a cada despertar. Sem internet, usa os últimos que recebeu.</div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/mqtt@5.3.4/dist/mqtt.min.js"></script>
+<script>
+const BASE = "sis1a/kauaheric/silo";
+const T = { tel: BASE+"/telemetria", est: BASE+"/estado", cmd: BASE+"/comando", ack: BASE+"/ack", ale: BASE+"/alerta" };
+const $ = id => document.getElementById(id);
+let cred = {}, client = null, estado = null, pend = {};
+const fmtHora = ts => new Date(ts*1000).toLocaleTimeString("pt-BR");
+const fmtH = ts => new Date(ts*1000).toLocaleString("pt-BR",{day:"2-digit",hour:"2-digit",minute:"2-digit"});
+
+// ---------- login (credenciais só na sessão da aba) ----------
+try { cred = JSON.parse(sessionStorage.getItem("cred")||"{}"); } catch {}
+["host","wsport","user","pass","secret","key"].forEach(k => { if (cred[k]) $("f-"+k).value = cred[k]; });
+$("btn-entrar").onclick = () => {
+  cred = { host:$("f-host").value.trim(), wsport:$("f-wsport").value.trim() || "8084", user:$("f-user").value, pass:$("f-pass").value, secret:$("f-secret").value, key:$("f-key").value };
+  if (!cred.host || !cred.user || !cred.pass || !cred.secret || !cred.key) { $("login-erro").textContent = "Preencha tudo."; return; }
+  try { sessionStorage.setItem("cred", JSON.stringify(cred)); } catch {}
+  $("login").hidden = true; $("app").hidden = false; iniciar();
+};
+
+// ---------- API do Worker ----------
+async function api(path, opts={}) {
+  const r = await fetch(path, { ...opts, headers: { "X-API-Key": cred.key, "content-type":"application/json" } });
+  if (!r.ok) throw new Error((await r.json().catch(()=>({}))).erro || r.status);
+  return r.json();
+}
+
+// ---------- MQTT (WebSocket seguro, porta configurável) ----------
+function iniciar() {
+  client = mqtt.connect(`wss://${cred.host}:${cred.wsport}/mqtt`, { username:cred.user, password:cred.pass, clientId:"painel-"+Math.random().toString(16).slice(2,8), reconnectPeriod:3000 });
+  client.on("connect", () => { setConn("conectado ao broker", "ok"); client.subscribe([T.tel,T.est,T.ack,T.ale], {qos:1}); });
+  client.on("reconnect", () => setConn("reconectando…", "warn"));
+  client.on("error", () => setConn("erro de conexão", "bad"));
+  client.on("message", (topic, buf) => {
+    let m; try { m = JSON.parse(buf.toString()); } catch { return; }
+    if (topic === T.tel) mostraTelemetria(m);
+    else if (topic === T.est) { estado = m; mostraEstado(); }
+    else if (topic === T.ack) recebeAck(m);
+    else if (topic === T.ale) mostraAlerta(m);
+  });
+  carregaResumo(); carregaConfig();
+  setInterval(mostraEstado, 1000);
+  setInterval(carregaResumo, 5*60*1000);
+}
+function setConn(txt, cls) { const e=$("conn"); e.textContent=txt; e.className="pill "+cls; }
+
+function mostraTelemetria(m) {
+  $("v-umid").textContent = m.umid_pct==null ? "sem leitura" : m.umid_pct.toFixed(1)+" %";
+  $("v-temp").textContent = m.temp_c==null ? "sem leitura" : m.temp_c.toFixed(1)+" °C";
+  $("v-umid-sub").textContent = $("v-temp-sub").textContent = "lido às "+fmtHora(m.ts);
+}
+function mostraEstado() {
+  if (!estado) return;
+  $("v-vent").textContent = estado.ventilador ? "LIGADO" : "desligado";
+  $("v-vent").className = "big " + (estado.ventilador ? "ok" : "");
+  $("v-modo").textContent = "modo: " + estado.modo.replace("_"," ") + (estado.falha_sensor ? " · SENSOR COM FALHA" : "");
+  const agora = Date.now()/1000, atraso = agora - estado.proximo_ts;
+  if (atraso <= 30) {
+    const falta = Math.max(0, Math.round(estado.proximo_ts - agora));
+    $("v-disp").textContent = "Dormindo"; $("v-disp").className = "big ok";
+    $("v-disp-sub").textContent = "acorda em ~"+falta+" s (ciclo de "+estado.ciclo_s+" s)";
+  } else {
+    $("v-disp").textContent = "Sem sinal"; $("v-disp").className = "big bad";
+    $("v-disp-sub").textContent = "deveria ter acordado às "+fmtHora(estado.proximo_ts)+" — verifique bateria e Wi-Fi";
+  }
+  // expira comandos sem confirmação
+  for (const id in pend) if (pend[id].estado==="enviado" && Date.now()-pend[id].t0 > (estado.ciclo_s+20)*1000) { pend[id].estado="sem_confirmacao"; desenhaCmds(); }
+}
+
+// ---------- comandos assinados ----------
+async function assina(msg) {
+  const k = await crypto.subtle.importKey("raw", new TextEncoder().encode(cred.secret), {name:"HMAC",hash:"SHA-256"}, false, ["sign"]);
+  const s = await crypto.subtle.sign("HMAC", k, new TextEncoder().encode(msg));
+  return [...new Uint8Array(s)].map(b=>b.toString(16).padStart(2,"0")).join("");
+}
+document.querySelectorAll("[data-cmd]").forEach(b => b.onclick = async () => {
+  const cmd = b.dataset.cmd, id = String(Date.now());      // id crescente: o ESP32 recusa repetição
+  const sig = await assina(id+"|"+cmd);
+  client.publish(T.cmd, JSON.stringify({id, cmd, sig}), {qos:1});
+  pend[id] = { cmd, estado:"enviado", t0:Date.now() }; desenhaCmds();
+});
+function recebeAck(m) {
+  const p = pend[m.id]; if (!p) return;
+  p.estado = m.ok ? "executado" : "recusado ("+m.motivo+")"; desenhaCmds();
+}
+function desenhaCmds() {
+  const ul = $("cmds"); ul.textContent = "";
+  Object.entries(pend).sort((a,b)=>b[0]-a[0]).slice(0,6).forEach(([id,p]) => {
+    const li = document.createElement("li");
+    const cls = p.estado==="executado" ? "ok" : p.estado==="enviado" ? "warn" : "bad";
+    const txt = p.estado==="enviado" ? "enviado — aguardando o silo acordar e confirmar" :
+                p.estado==="sem_confirmacao" ? "SEM CONFIRMAÇÃO — o silo pode estar offline" : p.estado;
+    li.append(p.cmd.replace("_"," ")+" · "+fmtHora(id/1000)+" · ");
+    const s = document.createElement("span"); s.className = cls; s.textContent = txt; li.append(s); ul.append(li);
+  });
+}
+
+// ---------- alertas ----------
+function mostraAlerta(m) {
+  const li = document.createElement("li");
+  li.textContent = fmtHora(m.ts)+" · "+m.tipo+" · "+m.msg;
+  $("alertas").prepend(li);
+  const b = $("banner"); b.hidden = false; b.textContent = "ALERTA: "+m.msg+" ("+fmtHora(m.ts)+")";
+}
+
+// ---------- histórico (D1) ----------
+async function carregaResumo() {
+  try {
+    const { linhas } = await api("/api/resumo?horas=24");
+    const tb = document.querySelector("#tabela tbody"); tb.textContent = "";
+    linhas.forEach(l => {
+      const tr = document.createElement("tr");
+      [fmtH(l.hora), l.umid_max+" %", l.umid_media+" %", l.temp_max+" °C", l.pct_ventilador_ligado+" %"].forEach(v => { const td=document.createElement("td"); td.textContent=v; tr.append(td); });
+      tb.append(tr);
+    });
+    grafico(linhas);
+  } catch (e) { $("grafico").textContent = "Histórico indisponível: "+e.message; }
+}
+function grafico(l) {
+  if (!l.length) { $("grafico").textContent = "Ainda sem dados."; return; }
+  const W=640,H=180,P=28, xs=i=>P+i*(W-2*P)/Math.max(1,l.length-1), y=v=>H-P-(v/100)*(H-2*P);
+  const pts = k => l.map((d,i)=>xs(i)+","+y(d[k])).join(" ");
+  const css = n => getComputedStyle(document.documentElement).getPropertyValue(n);
+  $("grafico").innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Umidade por hora">
+    <line x1="${P}" x2="${W-P}" y1="${y(70)}" y2="${y(70)}" stroke="${css('--warn')}" stroke-dasharray="4"/>
+    <text x="${W-P}" y="${y(70)-4}" text-anchor="end" font-size="11" fill="${css('--warn')}">limite 70 %</text>
+    <polyline fill="none" stroke="${css('--acc')}" stroke-width="2" points="${pts('umid_media')}"/>
+    <polyline fill="none" stroke="${css('--mut')}" stroke-width="1.5" stroke-dasharray="2 3" points="${pts('umid_max')}"/>
+    <text x="${P}" y="14" font-size="11" fill="${css('--mut')}">linha cheia = média · pontilhada = máxima</text></svg>`;
+}
+
+// ---------- limites (KV) ----------
+async function carregaConfig() {
+  try { const c = await api("/api/config"); $("c-ul").value=c.umid_liga; $("c-ud").value=c.umid_desliga; $("c-tl").value=c.t_liga; $("c-td").value=c.t_desliga; } catch {}
+}
+$("btn-cfg").onclick = async () => {
+  const body = JSON.stringify({ umid_liga:+$("c-ul").value, umid_desliga:+$("c-ud").value, t_liga:+$("c-tl").value, t_desliga:+$("c-td").value });
+  try { await api("/api/config", { method:"PUT", body }); $("cfg-msg").textContent = "salvo — vale no próximo despertar"; }
+  catch (e) { $("cfg-msg").textContent = "erro: "+e.message; }
+};
+</script>
+</body>
+</html>
