@@ -56,4 +56,40 @@ abre('1793897874394-raij7t.jpg').crop((290, 15, 1235, 490)).save('docs/prints/09
 
 # 10: Wokwi com LED aceso e estado restaurado da flash
 abre('1793897862088-4pwj7t.jpg').crop((552, 40, 1098, 462)).save('docs/prints/10_wokwi_led_ligado.png')
+# 11: painel com grafico (2 horas), tabela do D1 e alerta de falha do sensor
+abre('1793899216432-xvxxul.jpg').crop((290, 150, 1235, 730)).save('docs/prints/11_painel_grafico_alerta.png')
+
+
+def figura(titulo, linhas, saida, largura=900):
+    f = ImageFont.truetype('C:/Windows/Fonts/consola.ttf', 19)
+    fb = ImageFont.truetype('C:/Windows/Fonts/arialbd.ttf', 18)
+    h = 56 + 28 * len(linhas)
+    im = Image.new('RGB', (largura, h), '#f4f4f2')
+    d = ImageDraw.Draw(im)
+    d.text((14, 12), titulo, font=fb, fill='#222')
+    for i, ln in enumerate(linhas):
+        d.text((14, 46 + i * 28), ln, font=f, fill='#111')
+    im.save(saida)
+
+
+# 12: teste dos limites (transcricao do Serial do Wokwi)
+figura('Teste dos limites no Wokwi (transcrição do Serial; ciclos de 30 s)',
+       ['Umidade 60 %  (modo auto)  -> Dormindo 30 s (ventilador desligado)',
+        'Umidade 75 %               -> Dormindo 30 s (ventilador LIGADO)',
+        'Umidade 66 %               -> Dormindo 30 s (ventilador LIGADO)   [histerese]',
+        'Umidade 64 %               -> ligado no 1º ciclo (tempo mínimo) e depois',
+        '                              Dormindo 30 s (ventilador desligado)',
+        'Regra: liga se U>70 %; desliga só se U<65 % e T<28 °C, após o tempo mínimo.'],
+       'docs/prints/12_teste_limites.png')
+
+# 13: sensor com falha e alerta (transcricao do Serial do Wokwi)
+figura('Sensor removido no Wokwi (transcrição do Serial)',
+       ['T=nan C  U=nan %  ok=0  falhas=1   -> Dormindo 30 s (ventilador desligado)',
+        'T=nan C  U=nan %  ok=0  falhas=2   -> Dormindo 30 s (ventilador desligado)',
+        'T=nan C  U=nan %  ok=0  falhas=3   -> Dormindo 30 s (ventilador desligado)',
+        '...',
+        '[ALERTA] {"tipo":"falha_sensor","msg":"Sensor sem leitura: ventilador',
+        '          desligado por seguranca"}',
+        '[WIFI] sem rede: opera sozinho, historico fica na memoria'],
+       'docs/prints/13_sensor_falha_alerta.png')
 print('ok')

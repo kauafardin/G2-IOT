@@ -177,10 +177,10 @@ for _img, _w in (('docs/arquitetura.png', 5.4), ('docs/wokwi_esquematico.png', 4
 RES = '☐ Ainda não executado. Preencher após rodar no Wokwi.'
 resultados = [
     'Funcionando de ponta a ponta: DHT22 lê 24 °C e 60 % → ESP32 decide e publica por MQTT com TLS → regra do EMQX → Worker → D1; o painel mostra a leitura, o resumo do D1 e envia comandos que só viram "executado" com o ack do ESP32. Conferido com SELECT no D1: 9 leituras gravadas (média 24 °C e 60 %). O Worker recusa gravação sem chave (HTTP 401). O HTTPS direto do ESP32 ao Worker falhou no simulador (SSL - EOF); por isso o histórico passou a ir pelo broker.',
-    RES,
-    'Parcial. Com o HTTPS (versão antiga) falhando, o ESP32 não travou: guardou a leitura na memória, publicou por MQTT e foi dormir. Senha MQTT errada foi recusada pelo broker (rc=4) até corrigirmos. Pendente: remover o sensor e trocar o SSID.',
+    'Observado no Serial, com a umidade do DHT22 alterada em sequência: 60 % → ventilador desligado; 75 % → LIGOU; 66 % → continuou ligado (histerese); 64 % → desligou depois do tempo mínimo. Ver o print 12. Pendente: repetir com a temperatura em 31 e 27 °C.',
+    'Sensor removido (ligação SDA retirada do diagrama): T=nan, ok=0 e o contador de falhas subiu (1, 2, 3...) com o ventilador DESLIGADO em todos os ciclos (estado seguro); a partir da 3ª falha saiu o alerta falha_sensor, que apareceu no painel (14:19:05). Sem rede: em vários ciclos o Wi-Fi do simulador não conectou e o ESP32 registrou "[WIFI] sem rede: opera sozinho", seguiu decidindo e dormiu. Pendente: confirmar o envio das leituras guardadas quando a rede volta (no Wokwi a memória RTC é apagada a cada despertar).',
     'Observado: o Wokwi reinicia o ESP32 a cada despertar e apagava a memória RTC; por isso o estado (ventilador, modo manual e limites) também é salvo na flash (NVS). Depois do comando "ligar" o Serial mostra, a cada ciclo, "[NVS] estado restaurado: ventilador=1 modo=1" e "Dormindo 30 s (ventilador LIGADO)"; o LED fica aceso. Pendente: conferir o id do último comando após um Stop/Start.',
-    'Parcial. A credencial errada no broker foi recusada (rc=4) e o Worker recusa chamadas sem chave (401). Pendente: publicar comando com assinatura errada e reenviar comando antigo.',
+    'Parcial. A credencial errada no broker foi recusada (rc=4) e o Worker recusa chamadas sem chave (401). Os comandos com assinatura inválida e com id antigo foram publicados pelo painel, mas o Wi-Fi do simulador estava caindo e o descarte ainda não foi visto no Serial. Pendente.',
     'Parcial. Vários ciclos de 30 s (mais de 2 min de simulação) sem travar e 9 leituras gravadas no D1. Pendente: os 10 min completos e a conferência de que não há leitura repetida.',
 ]
 tests = [
@@ -248,6 +248,12 @@ _prints = [
      'Painel logado: ventilador LIGADO (modo forçado ligado), dispositivo "Dormindo" com contagem para o próximo despertar e três comandos "ligar" confirmados como "executado" pelo ESP32.'),
     ('docs/prints/10_wokwi_led_ligado.png', 4.6,
      'Wokwi: LED do ventilador aceso após o comando e Serial com "[NVS] estado restaurado: ventilador=1 modo=1" (o estado é salvo na flash e volta a cada despertar).'),
+    ('docs/prints/11_painel_grafico_alerta.png', 6.0,
+     'Painel: gráfico de umidade por hora (agora com a linha de 2 horas), tabela do resumo vindo do D1 e o alerta falha_sensor enviado pelo ESP32.'),
+    ('docs/prints/12_teste_limites.png', 6.0,
+     'Teste dos limites (transcrição do Serial do Wokwi): liga com 75 %, continua ligado com 66 % e desliga com 64 %.'),
+    ('docs/prints/13_sensor_falha_alerta.png', 6.0,
+     'Sensor removido (transcrição do Serial do Wokwi): leitura inválida, ventilador desligado por segurança e alerta falha_sensor.'),
     ('docs/prints/08_d1_leituras.png', 6.0,
      'Cloudflare D1: SELECT na tabela leituras mostrando 9 linhas gravadas (média 24 °C e 60 %), vindas do ESP32 pelo MQTT e pela regra do broker.'),
 ]
