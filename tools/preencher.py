@@ -176,12 +176,12 @@ for _img, _w in (('docs/arquitetura.png', 5.4), ('docs/wokwi_esquematico.png', 4
 # ---- etapa 10 (procedimento; resultados ficam para depois de rodar)
 RES = '☐ Ainda não executado. Preencher após rodar no Wokwi.'
 resultados = [
-    'Observado no Serial do Wokwi: DHT22 lendo 24,0 °C e 60 % (ok=1); Wi-Fi conectado; NTP sincronizado; MQTT com TLS conectado ao EMQX (certificado do broker conferido). Fora do Wokwi: o Worker recusa a gravação sem chave (HTTP 401) e o painel abre (HTTP 200). O HTTPS direto do ESP32 ao Worker falhou no simulador (SSL - EOF); por isso o histórico passou a ir por MQTT e o broker o encaminha ao Worker. PENDENTE: confirmar leituras no D1 com essa regra ativa.',
+    'Funcionando de ponta a ponta: DHT22 lê 24 °C e 60 % → ESP32 decide e publica por MQTT com TLS → regra do EMQX → Worker → D1. Conferido com SELECT no D1: 9 leituras gravadas (média 24 °C e 60 %). O Worker recusa gravação sem chave (HTTP 401). O HTTPS direto do ESP32 ao Worker falhou no simulador (SSL - EOF); por isso o histórico passou a ir pelo broker.',
     RES,
-    'Parcial. Com o HTTPS (versão antiga) falhando, o ESP32 não travou: guardou a leitura na memória ("1 leituras ficam na memoria"), publicou por MQTT e foi dormir. Senha MQTT errada foi recusada pelo broker (rc=4) até corrigirmos. Pendente: remover o sensor e trocar o SSID.',
+    'Parcial. Com o HTTPS (versão antiga) falhando, o ESP32 não travou: guardou a leitura na memória, publicou por MQTT e foi dormir. Senha MQTT errada foi recusada pelo broker (rc=4) até corrigirmos. Pendente: remover o sensor e trocar o SSID.',
     'Parcial. Observado: o ESP32 reiniciou sozinho no primeiro boot (assert, antes de o NTP sincronizar), voltou a operar e fez ciclos de deep sleep de 30 s sem intervenção. Pendente: parar e iniciar a simulação e conferir o id do último comando.',
     'Parcial. A credencial errada no broker foi recusada (rc=4) e o Worker recusa chamadas sem chave (401). Pendente: publicar comando com assinatura errada e reenviar comando antigo.',
-    'Parcial. Foram observados vários ciclos de 30 s (~2 min) sem travar. Pendente: 10 min completos e conferência no D1.',
+    'Parcial. Vários ciclos de 30 s (mais de 2 min de simulação) sem travar e 9 leituras gravadas no D1. Pendente: os 10 min completos e a conferência de que não há leitura repetida.',
 ]
 tests = [
     'Rodar o DHT22 e o LED separadamente, depois o MQTT e a gravação no D1 (curl na rota, com a chave); conferir cada um no Serial.',
@@ -231,17 +231,21 @@ _head = next(p for p in d.paragraphs if p.text.strip().startswith('ETAPA 10'))
 _cap_model = T[20].rows[1].cells[1].paragraphs[0]
 _prints = [
     ('docs/prints/01_wokwi_serial_mqtt.png', 4.6,
-     'Wokwi: DHT22 lendo 24 °C e 60 %, Wi-Fi e NTP ok e MQTT conectado ao broker com TLS (print de antes da mudança para o envio do histórico por MQTT; o HTTPS direto do ESP32 ao Worker falhava no simulador com SSL EOF).'),
+     'Wokwi: circuito real e, abaixo, o texto do Serial de um ciclo (transcrição): leitura de 24 °C e 60 %, Wi-Fi e NTP ok, MQTT conectado ao broker com TLS, leitura enviada por MQTT e deep sleep.'),
     ('docs/prints/02_emqx_broker_rodando.png', 6.0,
      'EMQX Serverless: broker "Running", limite de gasto US$ 0,00 e 1 sessão ativa (o ESP32 conectado).'),
     ('docs/prints/03_emqx_usuarios.png', 6.0,
      'EMQX: usuários esp32_silo e painel (autenticação por usuário e senha).'),
     ('docs/prints/04_emqx_permissoes.png', 6.0,
-     'EMQX: permissões por tópico. O ESP32 publica telemetria, estado, ack e alerta e só assina comando; o painel assina tudo e só publica em comando.'),
+     'EMQX: permissões por tópico. O painel (3 regras) assina tudo e só publica comando e config; o esp32_silo (7 regras) publica telemetria, estado, leitura, ack e alerta e só assina comando e config.'),
     ('docs/prints/05_painel_login.png', 3.0,
      'Painel publicado no Worker (tela de entrada; as credenciais ficam só na sessão do navegador).'),
     ('docs/prints/06_cloudflare_worker.png', 6.0,
      'Cloudflare: Worker silo-graos com D1 (histórico), KV (limites) e Assets (painel) ligados.'),
+    ('docs/prints/07_emqx_regra_webhook.png', 6.0,
+     'EMQX: conector HTTP "Connected" e regra habilitada no tópico leitura. A regra encaminha cada leitura ao Worker (webhook HTTPS com a chave só no broker).'),
+    ('docs/prints/08_d1_leituras.png', 6.0,
+     'Cloudflare D1: SELECT na tabela leituras mostrando 9 linhas gravadas (média 24 °C e 60 %), vindas do ESP32 pelo MQTT e pela regra do broker.'),
 ]
 _anchor = T[20]._tbl
 _new = []
