@@ -1,13 +1,8 @@
-// Certificados RAIZ (públicos, podem ir ao GitHub). O ESP32 só confia no servidor
-// se a cadeia dele terminar nestes certificados. Por isso NÃO usamos setInsecure().
+// Certificado RAIZ do broker (público, pode ir ao GitHub). O ESP32 só confia no servidor
+// se a cadeia dele terminar neste certificado. Por isso NÃO usamos setInsecure().
 //
-// Como obter (rode no PowerShell/Git Bash com openssl instalado):
-//   MQTT (EMQX Serverless): na página Overview do deployment, baixe o "CA Certificate" e cole o conteúdo abaixo.
-//   Worker (*.workers.dev):  veja a cadeia com
-//       openssl s_client -connect SEU-WORKER.workers.dev:443 -showcerts
-//     e copie o ÚLTIMO certificado da cadeia (a raiz; hoje é da Google Trust Services / GlobalSign).
-//
-// Cole o texto PEM de cada um entre as aspas, mantendo as quebras de linha como abaixo.
+// Origem: EMQX Serverless -> página Overview do deployment -> "CA Certificate" (DigiCert Global Root G2).
+// O ESP32 só fala MQTT/TLS; o broker encaminha as leituras ao Worker, então não há certificado do Worker aqui.
 #pragma once
 
 static const char ROOT_CA_MQTT[] PROGMEM = R"EOF(
@@ -32,29 +27,5 @@ Fdtom/DzMNU+MeKNhJ7jitralj41E6Vf8PlwUHBHQRFXGU7Aj64GxJUTFy8bJZ91
 8rGOmaFvE7FBcf6IKshPECBV1/MUReXgRPTqh5Uykw7+U0b6LJ3/iyK5S9kJRaTe
 pLiaWN0bfVKfjllDiIGknibVb63dDcY3fe0Dkhvld1927jyNxF1WW6LZZm6zNTfl
 MrY=
------END CERTIFICATE-----
-)EOF";
-
-static const char ROOT_CA_HTTP[] PROGMEM = R"EOF(
------BEGIN CERTIFICATE-----
-MIIDejCCAmKgAwIBAgIQf+UwvzMTQ77dghYQST2KGzANBgkqhkiG9w0BAQsFADBX
-MQswCQYDVQQGEwJCRTEZMBcGA1UEChMQR2xvYmFsU2lnbiBudi1zYTEQMA4GA1UE
-CxMHUm9vdCBDQTEbMBkGA1UEAxMSR2xvYmFsU2lnbiBSb290IENBMB4XDTIzMTEx
-NTAzNDMyMVoXDTI4MDEyODAwMDA0MlowRzELMAkGA1UEBhMCVVMxIjAgBgNVBAoT
-GUdvb2dsZSBUcnVzdCBTZXJ2aWNlcyBMTEMxFDASBgNVBAMTC0dUUyBSb290IFI0
-MHYwEAYHKoZIzj0CAQYFK4EEACIDYgAE83Rzp2iLYK5DuDXFgTB7S0md+8Fhzube
-Rr1r1WEYNa5A3XP3iZEwWus87oV8okB2O6nGuEfYKueSkWpz6bFyOZ8pn6KY019e
-WIZlD6GEZQbR3IvJx3PIjGov5cSr0R2Ko4H/MIH8MA4GA1UdDwEB/wQEAwIBhjAd
-BgNVHSUEFjAUBggrBgEFBQcDAQYIKwYBBQUHAwIwDwYDVR0TAQH/BAUwAwEB/zAd
-BgNVHQ4EFgQUgEzW63T/STaj1dj8tT7FavCUHYwwHwYDVR0jBBgwFoAUYHtmGkUN
-l8qJUC99BM00qP/8/UswNgYIKwYBBQUHAQEEKjAoMCYGCCsGAQUFBzAChhpodHRw
-Oi8vaS5wa2kuZ29vZy9nc3IxLmNydDAtBgNVHR8EJjAkMCKgIKAehhxodHRwOi8v
-Yy5wa2kuZ29vZy9yL2dzcjEuY3JsMBMGA1UdIAQMMAowCAYGZ4EMAQIBMA0GCSqG
-SIb3DQEBCwUAA4IBAQAYQrsPBtYDh5bjP2OBDwmkoWhIDDkic574y04tfzHpn+cJ
-odI2D4SseesQ6bDrarZ7C30ddLibZatoKiws3UL9xnELz4ct92vID24FfVbiI1hY
-+SW6FoVHkNeWIP0GCbaM4C6uVdF5dTUsMVs/ZbzNnIdCp5Gxmx5ejvEau8otR/Cs
-kGN+hr/W5GvT1tMBjgWKZ1i4//emhA1JG1BbPzoLJQvyEotc03lXjTaCzv8mEbep
-8RqZ7a2CPsgRbuvTPBwcOMBBmuFeU88+FSBX6+7iP0il8b4Z0QFqIwwMHfs/L6K1
-vepuoxtGzi4CZ68zJpiq1UvSqTbFJjtbD4seiMHl
 -----END CERTIFICATE-----
 )EOF";

@@ -10,9 +10,5 @@
 #define MQTT_USER        "esp32_silo"        // usuário com permissão só nos tópicos do grupo
 #define MQTT_PASS        "troque-esta-senha"
 
-// Worker (histórico no D1 e limites no KV)
-#define WORKER_URL       "https://silo-graos.kauafardin2004.workers.dev"
-#define WORKER_API_KEY   "troque-esta-chave-do-dispositivo"
-
 // Segredo compartilhado com o painel para assinar comandos (HMAC-SHA256)
 #define CMD_SECRET       "troque-este-segredo-de-comando"

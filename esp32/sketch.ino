@@ -2,11 +2,11 @@
 // Sente: DHT22 (temperatura e umidade do ar dentro do silo).
 // Decide: liga/desliga o ventilador (aeração) com histerese, SEM depender da internet.
 // Age: GPIO 26 (LED no Wokwi = relé do ventilador na vida real).
-// Fala: MQTT com TLS (estado/comandos) + HTTPS para o Worker (histórico e limites).
+// Fala: só MQTT com TLS (telemetria, comandos, limites e histórico). O broker EMQX encaminha
+// cada leitura ao Worker (D1), então o ESP32 não guarda nenhuma chave de nuvem.
 // Para economizar bateria o ESP32 passa quase todo o tempo em deep sleep.
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
-#include <HTTPClient.h>
 #include <PubSubClient.h>
 #include <ArduinoJson.h>
 #include <DHT.h>
@@ -49,6 +49,8 @@ const float UMID_CRITICA       = 78.0;       // alerta: umidade perigosa para o 
 #define T_COMANDO    BASE "/comando"
 #define T_ACK        BASE "/ack"
 #define T_ALERTA     BASE "/alerta"
+#define T_LEITURA    BASE "/leitura"   // histórico: o broker encaminha ao Worker/D1
+#define T_CONFIG     BASE "/config"    // limites do ventilador (retido, publicado pelo painel)
 
 // ---------- memória que sobrevive ao deep sleep (RTC) ----------
 struct Leitura { uint32_t ts; float t; float u; uint8_t vent; };
@@ -190,7 +192,26 @@ void enviaAck(const char* idStr, const char* cmd, bool ok, const char* motivo) {
   mqtt.publish(T_ACK, out);
 }
 
+bool configMudou = false;
+
+// Limites vindos do painel por MQTT (tópico retido). Valida antes de aceitar.
+void aplicaConfig(byte* payload, unsigned int len) {
+  JsonDocument d;
+  if (deserializeJson(d, payload, len)) { Serial.println("[CFG] JSON invalido"); return; }
+  float ul = d["umid_liga"] | umidLiga, ud = d["umid_desliga"] | umidDesliga;
+  float tl = d["t_liga"] | tLiga,       td = d["t_desliga"] | tDesliga;
+  if (ul > 0 && ul <= 100 && ud > 0 && ud < ul && tl > 0 && tl < 60 && td > 0 && td < tl) {
+    umidLiga = ul; umidDesliga = ud; tLiga = tl; tDesliga = td;
+    configMudou = true;
+    Serial.printf("[CFG] liga>%.0f%%/%.0fC desliga<%.0f%%/%.0fC
+", umidLiga, tLiga, umidDesliga, tDesliga);
+  } else {
+    Serial.println("[CFG] limites invalidos: ignorados");
+  }
+}
+
 void aoReceber(char* topic, byte* payload, unsigned int len) {
+  if (!strcmp(topic, T_CONFIG)) { aplicaConfig(payload, len); return; }
   JsonDocument d;
   if (deserializeJson(d, payload, len)) { Serial.println("[CMD] JSON invalido"); return; }
   const char* idStr = d["id"] | "";
@@ -233,6 +254,7 @@ bool conectaMqtt() {
   for (int i = 0; i < 3; i++) {
     if (mqtt.connect(cid.c_str(), MQTT_USER, MQTT_PASS, nullptr, 0, false, nullptr, false)) {
       mqtt.subscribe(T_COMANDO, 1);
+      mqtt.subscribe(T_CONFIG, 1);
       return true;
     }
     Serial.printf("[MQTT] falhou rc=%d\n", mqtt.state());
@@ -241,78 +263,36 @@ bool conectaMqtt() {
   return false;
 }
 
-// ---------- HTTPS: limites (KV) e histórico (D1) ----------
-// SÓ PARA DIAGNÓSTICO: 1 = não confere o certificado do Worker. Deixe SEMPRE em 0 na entrega.
-#define DIAG_HTTPS_INSEGURO 0
-
-void configuraTlsHttp(WiFiClientSecure& c) {
-#if DIAG_HTTPS_INSEGURO
-  Serial.println("[AVISO] HTTPS sem verificar certificado (diagnostico)");
-  c.setInsecure();
-#else
-  c.setCACert(ROOT_CA_HTTP);       // confere o servidor de verdade
-#endif
-}
-
-void buscaConfig() {
-  WiFiClientSecure tls;
-  configuraTlsHttp(tls);
-  HTTPClient http;
-  http.setTimeout(6000);
-  if (!http.begin(tls, String(WORKER_URL) + "/api/config")) return;
-  http.addHeader("X-API-Key", WORKER_API_KEY);
-  int code = http.GET();
-  if (code < 0) {   // diagnóstico: motivo exato da falha de TLS/conexão
-    char err[100];
-    tls.lastError(err, sizeof(err));
-    Serial.printf("[HTTP] erro %d: %s\n", code, err);
-  }
-  if (code == 200) {
-    JsonDocument d;
-    if (!deserializeJson(d, http.getString())) {
-      float ul = d["umid_liga"] | umidLiga, ud = d["umid_desliga"] | umidDesliga;
-      float tl = d["t_liga"] | tLiga,       td = d["t_desliga"] | tDesliga;
-      // valida: ignora configuração absurda ou sem histerese
-      if (ul > 0 && ul <= 100 && ud > 0 && ud < ul && tl > 0 && tl < 60 && td > 0 && td < tl) {
-        umidLiga = ul; umidDesliga = ud; tLiga = tl; tDesliga = td;
-      }
-    }
-  }
-  http.end();
-  Serial.printf("[HTTP] config %d: liga>%.0f%%/%.0fC desliga<%.0f%%/%.0fC\n", code, umidLiga, tLiga, umidDesliga, tDesliga);
-}
-
+// ---------- histórico ----------
 void guardaNoBuffer() {
   if (!leituraOk || !horaOk()) return;            // leitura inválida não vira histórico
   if (bufN == BUF_MAX) { memmove(&buf[0], &buf[1], sizeof(Leitura) * (BUF_MAX - 1)); bufN--; }
   buf[bufN++] = { agoraEpoch(), tempC, umidPct, (uint8_t)(ventLigado ? 1 : 0) };
 }
 
+// Publica cada leitura guardada em T_LEITURA. A regra do broker (EMQX) encaminha ao Worker, que grava no D1.
 void enviaHistorico() {
-  if (bufN == 0) return;
-  JsonDocument d;
-  JsonArray arr = d.to<JsonArray>();
+  if (bufN == 0 || !mqtt.connected()) return;
+  int enviadas = 0;
   for (int i = 0; i < bufN; i++) {
-    JsonObject o = arr.add<JsonObject>();
-    o["ts"] = buf[i].ts;
-    o["temp_c"] = round(buf[i].t * 10) / 10.0;
-    o["umid_pct"] = round(buf[i].u * 10) / 10.0;
-    o["ventilador"] = buf[i].vent;
+    JsonDocument d;
+    d["ts"] = buf[i].ts;
+    d["temp_c"] = round(buf[i].t * 10) / 10.0;
+    d["umid_pct"] = round(buf[i].u * 10) / 10.0;
+    d["ventilador"] = buf[i].vent;
+    char out[120];
+    serializeJson(d, out);
+    if (!mqtt.publish(T_LEITURA, out)) break;
+    enviadas++;
+    mqtt.loop();
+    delay(20);
   }
-  String body;
-  serializeJson(d, body);
-
-  WiFiClientSecure tls;
-  configuraTlsHttp(tls);
-  HTTPClient http;
-  http.setTimeout(8000);
-  if (!http.begin(tls, String(WORKER_URL) + "/api/leituras")) return;
-  http.addHeader("Content-Type", "application/json");
-  http.addHeader("X-API-Key", WORKER_API_KEY);
-  int code = http.POST(body);
-  http.end();
-  if (code >= 200 && code < 300) { Serial.printf("[HTTP] %d leituras gravadas\n", bufN); bufN = 0; }
-  else Serial.printf("[HTTP] falhou (%d): %d leituras ficam na memoria\n", code, bufN);
+  if (enviadas > 0) {
+    memmove(&buf[0], &buf[enviadas], sizeof(Leitura) * (bufN - enviadas));
+    bufN -= enviadas;
+  }
+  Serial.printf("[MQTT] %d leituras enviadas (restam %d)
+", enviadas, bufN);
 }
 
 bool conectaWifi() {
@@ -370,7 +350,6 @@ void setup() {
     }
     Serial.printf("[NTP] hora %s\n", horaOk() ? "ok" : "NAO sincronizada");
     guardaNoBuffer();   // só depois do relógio: a leitura precisa de timestamp
-    if (horaOk()) buscaConfig();   // sem hora certa o TLS recusa o certificado
     if (conectaMqtt()) {
       Serial.println("[MQTT] conectado");
       publicaTelemetria();
@@ -380,8 +359,11 @@ void setup() {
       // janela curta (2 s) acordado para receber comandos que ficaram na fila do broker
       uint32_t t0 = millis();
       while (millis() - t0 < JANELA_COMANDO_MS) { mqtt.loop(); delay(10); }
+      if (configMudou) { decide(); publicaEstado(); }   // limites novos valem já neste ciclo
+      enviaHistorico();
+      mqtt.loop();
+      delay(100);   // deixa o último pacote sair antes de dormir
     }
-    enviaHistorico();
   } else {
     guardaNoBuffer();
     Serial.println("[WIFI] sem rede: opera sozinho, historico fica na memoria");
