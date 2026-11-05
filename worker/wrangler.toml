@@ -1,0 +1,24 @@
+name = "silo-graos"
+main = "src/index.js"
+compatibility_date = "2025-01-01"
+
+[assets]
+directory = "./public"
+binding = "ASSETS"
+run_worker_first = ["/api/*"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "silo-graos"
+database_id = "ec1cc8ad-92c8-4b67-965c-95bb82d2df92"
+
+[[kv_namespaces]]
+binding = "KV"
+id = "a9d47e23c4414964be778a2b328a2849"
+
+[triggers]
+crons = ["0 5 * * *"]   # limpeza diária (retenção de 90 dias)
+
+# Segredos NÃO ficam aqui. Use:
+#   npx wrangler secret put DEVICE_KEY
+#   npx wrangler secret put PAINEL_KEY
