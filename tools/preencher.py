@@ -50,7 +50,7 @@ rf = [
      'Wokwi: mover os sliders do DHT22 e ver o LED; o Serial mostra T, U e estado do ventilador.'),
     ('Manter o ventilador ligado por no mínimo 30 min antes de poder desligar, mesmo que a leitura melhore (evita ligar/desligar o relé).',
      'Teste com umidade oscilando entre 64 % e 71 %: o LED não pisca; no MODO_DEMO o mínimo é 60 s.'),
-    ('Publicar leitura e estado por MQTT/TLS e gravar o histórico no D1 em até 10 s após acordar; sem internet, guardar até 48 leituras e enviá-las quando a rede voltar. Alertar se umidade ≥ 78 % (cooldown de 6 h por tipo).',
+    ('Publicar leitura e estado por MQTT/TLS e, pela regra do broker, gravar o histórico no D1 no mesmo ciclo; sem internet, guardar até 48 leituras e enviá-las quando a rede voltar. Alertar se umidade ≥ 78 % (cooldown de 6 h por tipo).',
      'Consulta /api/resumo no painel; derrubar o Wi-Fi e ver as leituras chegarem depois; alerta no tópico /alerta.'),
     ('Executar comando remoto assinado (ligar / desligar / automático) no primeiro despertar após o envio e confirmar com ack; descartar comando sem assinatura válida ou repetido; o modo manual expira em 1 h.',
      'Painel mostra "enviado" e depois "executado" só com o ack; comando falso não muda nada (log no Serial).'),
@@ -77,7 +77,7 @@ comp = [
     ('LED verde + resistor 330 Ω (representa o RELÉ do ventilador de aeração)', 'Liga/desliga o ventilador', 'GPIO 26',
      'HIGH = ventilador ligado; LOW = desligado. O nível é mantido durante o deep sleep (gpio_hold).',
      'Após reinício o ESP32 relê o sensor e decide de novo; a RTC lembra o estado e o painel só dá "executado" com o ack.'),
-    ('Wi-Fi + MQTT/HTTPS + timer de deep sleep', 'Comunica e acorda o ESP32 a cada ciclo', '—',
+    ('Wi-Fi + MQTT/TLS + timer de deep sleep', 'Comunica e acorda o ESP32 a cada ciclo', '—',
      'Wi-Fi com timeout de 10 s; ciclo de 900 s (15 min); janela de comandos de 2 s.',
      'Sem rede: continua decidindo sozinho, guarda as leituras na memória RTC e tenta de novo no próximo ciclo.'),
 ]
@@ -96,13 +96,13 @@ put(T[9].rows[0].cells[1],
     '  escreve GPIO 26 e trava o nivel (gpio_hold)\n'
     '  envia, recebe comandos por 2 s e dorme 15 min')
 put(T[9].rows[1].cells[1],
-    'No ESP32 (borda): a decisão não pode esperar nem depender da internet, e o dado já nasce aqui. Os limites (70/65 %, 30/28 °C) ficam no KV do Worker porque o agrônomo pode ajustá-los de fora; o ESP32 lê esse valor a cada despertar e guarda o último na memória RTC. Cruzar dados e mostrar histórico fica na nuvem.')
+    'No ESP32 (borda): a decisão não pode esperar nem depender da internet, e o dado já nasce aqui. Os limites (70/65 %, 30/28 °C) ficam no KV do Worker porque o agrônomo pode ajustá-los de fora; o painel também os publica em um tópico MQTT retido (config), o ESP32 lê esse tópico a cada despertar e guarda o último valor na memória RTC. Cruzar dados e mostrar histórico fica na nuvem.')
 put(T[9].rows[2].cells[1],
-    'Cai: o ESP32 continua ligando/desligando o ventilador com os últimos limites que recebeu e guarda até 48 leituras (12 h) na RTC; a mais antiga é descartada se encher. Volta: no primeiro ciclo com Wi-Fi ele reenvia tudo em lote (o D1 usa ts como chave, então reenvio não duplica), busca os limites novos e recebe os comandos que ficaram na fila do broker.')
+    'Cai: o ESP32 continua ligando/desligando o ventilador com os últimos limites que recebeu e guarda até 48 leituras (12 h) na RTC; a mais antiga é descartada se encher. Volta: no primeiro ciclo com Wi-Fi ele publica as leituras guardadas uma a uma no tópico leitura (o D1 usa ts como chave, então repetição não duplica), recebe os limites novos (tópico retido) e os comandos que ficaram na fila do broker.')
 
 # ---- etapa 4
 put(T[11].rows[0].cells[1],
-    'MQTT com TLS (porta 8883) para estado, telemetria, comando, ack e alerta: o ESP32 usa sessão persistente e QoS 1, então um comando enviado enquanto ele dorme fica na fila e chega quando acorda. HTTPS (Worker) para gravar o histórico no D1 e ler os limites no KV, porque a nuvem não consegue "chamar" o ESP32. O painel usa MQTT sobre WebSocket seguro (8084) para o tempo real.')
+    'MQTT com TLS (porta 8883) para estado, telemetria, comando, ack e alerta: o ESP32 usa sessão persistente e QoS 1, então um comando enviado enquanto ele dorme fica na fila e chega quando acorda. O ESP32 não usa HTTPS: cada leitura vai por MQTT para o tópico leitura e uma regra do próprio broker (webhook HTTPS, com a chave só no broker) a grava no D1 pelo Worker. Assim o dispositivo mantém uma única conexão segura (menos tempo acordado e nenhuma chave de nuvem no ESP32). O painel usa MQTT sobre WebSocket seguro (8084) para o tempo real.')
 put(T[11].rows[1].cells[1],
     'sis1a/kauaheric/silo/telemetria — ESP32 publica (retido); painel assina\n'
     'sis1a/kauaheric/silo/estado — ESP32 publica (retido); painel assina\n'
@@ -111,7 +111,7 @@ put(T[11].rows[1].cells[1],
     'sis1a/kauaheric/silo/alerta — ESP32 publica; painel assina')
 put(T[11].rows[2].cells[1], '{"temp_c":24.3,"umid_pct":71.5,"ventilador":true,"ts":1767225600}')
 put(T[11].rows[3].cells[1],
-    'MQTT: porta 8883. HTTPS: 443. Painel: wss 8084. O ESP32 chama setCACert() com o certificado raiz (o "CA Certificate" do EMQX para o broker; a raiz do Worker para o HTTPS) e só conecta se a cadeia do servidor terminar nele. Não usamos setInsecure().')
+    'MQTT: porta 8883. Painel: wss 8084. O ESP32 chama setCACert() com o certificado raiz do broker (o "CA Certificate" do EMQX, DigiCert Global Root G2) e só conecta se a cadeia do servidor terminar nele. Não usamos setInsecure(). O HTTPS (443) fica entre o broker e o Worker.')
 
 # ---- etapa 5
 put(T[13].rows[0].cells[1],
@@ -130,7 +130,7 @@ put(T[13].rows[4].cells[1],
 put(T[14].rows[0].cells[1],
     'Cartões com umidade, temperatura, estado do ventilador (e modo) e situação do dispositivo ("Dormindo, acorda em ~X s" ou "Sem sinal"); gráfico de umidade por hora das últimas 24 h e tabela de resumo (vindos do D1); lista de alertas; formulário dos limites (KV).')
 put(T[14].rows[1].cells[1],
-    'Ligar / desligar / voltar ao automático, publicados em sis1a/kauaheric/silo/comando como JSON {id, cmd, sig}, com sig = HMAC-SHA256(segredo, id|cmd). Os limites são alterados por PUT /api/config no Worker (exige a chave do painel).')
+    'Ligar / desligar / voltar ao automático, publicados em sis1a/kauaheric/silo/comando como JSON {id, cmd, sig}, com sig = HMAC-SHA256(segredo, id|cmd). Os limites são alterados por PUT /api/config no Worker (exige a chave do painel) e publicados no tópico retido config.')
 put(T[14].rows[2].cells[1],
     'Só mostra "executado" quando chega no tópico /ack a confirmação com o mesmo id; antes disso mostra "enviado, aguardando o silo acordar". Espera um ciclo + 20 s (15 min + 20 s); passado isso exibe "SEM CONFIRMAÇÃO — o silo pode estar offline". O painel também mostra "dormindo até..." ou "sem sinal".')
 put(T[14].rows[3].cells[1],
@@ -141,7 +141,7 @@ put(T[14].rows[4].cells[1],
 # ---- etapa 7
 sec = [
     ('Sim, poderia existir.', 'O broker só aceita TLS na porta 8883; a 1883 não é usada. Camada: rede/transporte.'),
-    ('Sim, poderia existir.', 'setCACert() com certificado raiz no ESP32 para o broker e para o Worker; setInsecure() não aparece no código. Camada: dispositivo.'),
+    ('Sim, poderia existir.', 'setCACert() com o certificado raiz do broker no ESP32; setInsecure() não aparece no código. O ESP32 nem abre HTTPS: o webhook do broker ao Worker usa o certificado do Worker. Camada: dispositivo.'),
     ('Sim, a rota de gravação.', 'POST /api/leituras exige X-API-Key (DEVICE_KEY, comparação em tempo constante) e valida faixas e formato; PUT /api/config exige a chave do painel. Camada: nuvem.'),
     ('Sim, o tópico de comando.', 'Usuários MQTT com permissão mínima (o painel só publica em /comando; o ESP32 só assina nele) e comando com HMAC-SHA256 + id crescente guardado na flash, que bloqueia comando falso e repetido. Camadas: broker e dispositivo.'),
     ('Sim, poderia existir.', 'secrets.h está no .gitignore (só o secrets.example.h vai ao GitHub); segredos do Worker via wrangler secret; o painel pede as credenciais na tela e as mantém só na aba; o Serial nunca imprime senhas ou chaves. Camada: repositório.'),
@@ -153,7 +153,7 @@ for i, (a, b) in enumerate(sec, 1):
 put(T[17].rows[0].cells[1],
     'Energia e autonomia (deep sleep + cálculo). Combina com o problema: o silo não tem tomada e a pergunta difícil do desafio é "quanto tempo o ESP32 pode ficar acordado para a bateria durar?".')
 put(T[17].rows[1].cells[1],
-    'Premissas (estimativas a confirmar com multímetro): acordado ~6 s por ciclo a ~160 mA (Wi-Fi + TLS + HTTPS + janela de comandos de 2 s); deep sleep ~0,15 mA (kit com regulador; ~0,01 mA no chip puro); bateria 2×18650 = 5.000 mAh com 80 % úteis = 4.000 mAh. O ventilador tem alimentação própria (painel solar ou rede), fora desta conta.\n'
+    'Premissas (estimativas a confirmar com multímetro): acordado ~6 s por ciclo a ~160 mA (Wi-Fi + TLS MQTT + janela de comandos de 2 s; sem HTTPS, que só alongaria esse tempo); deep sleep ~0,15 mA (kit com regulador; ~0,01 mA no chip puro); bateria 2×18650 = 5.000 mAh com 80 % úteis = 4.000 mAh. O ventilador tem alimentação própria (painel solar ou rede), fora desta conta.\n'
     'Ciclo de 15 min (900 s): corrente média = (160×6 + 0,15×894) ÷ 900 = 1.094 ÷ 900 ≈ 1,22 mA. Autonomia = 4.000 ÷ 1,22 ≈ 3.290 h ≈ 137 dias (~4,5 meses).\n'
     'Ciclo de 30 min: (160×6 + 0,15×1.794) ÷ 1.800 ≈ 0,68 mA → ≈ 5.860 h ≈ 244 dias.\n'
     'Sempre acordado: 160 mA → 4.000 ÷ 160 = 25 h (pouco mais de 1 dia).\n'
@@ -161,11 +161,11 @@ put(T[17].rows[1].cells[1],
 
 # ---- etapa 9
 put(T[18].rows[1].cells[1], 'ESP32 DevKit + sensor DHT22 (GPIO 15) + relé do ventilador (LED no Wokwi, GPIO 26). Decide sozinho, usa deep sleep e guarda estado e leituras na memória RTC.')
-put(T[18].rows[2].cells[1], 'Wi-Fi do local; MQTT com TLS (8883) até o broker EMQX Serverless; HTTPS (443) até o Worker; painel por WebSocket seguro (8084).')
+put(T[18].rows[2].cells[1], 'Wi-Fi do local; MQTT com TLS (8883) até o broker EMQX Serverless; o broker encaminha as leituras ao Worker por HTTPS (webhook); painel por WebSocket seguro (8084).')
 put(T[18].rows[3].cells[1], 'Cloudflare Worker (rotas /api/leituras, /api/resumo, /api/config), D1 (histórico), KV (limites e última leitura) e cron diário de limpeza (90 dias).')
 put(T[18].rows[4].cells[1], 'Painel web servido pelo próprio Worker: estado em tempo real, gráfico e resumo, comandos assinados com confirmação (ack), alertas e ajuste de limites.')
 put(T[19].rows[0].cells[1],
-    'Fluxo: DHT22 → ESP32 (decide, aciona o ventilador, dorme) → MQTT/TLS → broker ⇄ painel (WSS); ESP32 → HTTPS → Worker → D1/KV ⇄ painel.\n'
+    'Fluxo: DHT22 → ESP32 (decide, aciona o ventilador, dorme) → MQTT/TLS → broker ⇄ painel (WSS); ESP32 → MQTT (tópico leitura) → regra do broker → HTTPS → Worker → D1/KV ⇄ painel.\n'
     'Diagrama de arquitetura (acima) e esquemático no Wokwi (DHT22 no GPIO 15; LED + 330 Ω no GPIO 26) (abaixo).')
 from docx.shared import Inches
 _cel = T[19].rows[0].cells[1]
@@ -176,15 +176,15 @@ for _img, _w in (('docs/arquitetura.png', 5.4), ('docs/wokwi_esquematico.png', 4
 # ---- etapa 10 (procedimento; resultados ficam para depois de rodar)
 RES = '☐ Ainda não executado. Preencher após rodar no Wokwi.'
 resultados = [
-    'Observado no Serial do Wokwi: DHT22 lendo 24,0 °C e 60 % (ok=1); Wi-Fi conectado; NTP sincronizado; MQTT com TLS conectado ao EMQX (certificado do broker conferido). Fora do Wokwi: o Worker recusa a gravação sem chave (HTTP 401) e o painel abre (HTTP 200). PENDENTE: o HTTPS do ESP32 ao Worker falha no simulador (SSL - EOF), então ainda não há leituras no D1 vindas do ESP32.',
+    'Observado no Serial do Wokwi: DHT22 lendo 24,0 °C e 60 % (ok=1); Wi-Fi conectado; NTP sincronizado; MQTT com TLS conectado ao EMQX (certificado do broker conferido). Fora do Wokwi: o Worker recusa a gravação sem chave (HTTP 401) e o painel abre (HTTP 200). O HTTPS direto do ESP32 ao Worker falhou no simulador (SSL - EOF); por isso o histórico passou a ir por MQTT e o broker o encaminha ao Worker. PENDENTE: confirmar leituras no D1 com essa regra ativa.',
     RES,
-    'Parcial. Com o HTTPS falhando, o ESP32 não travou: guardou a leitura na memória ("1 leituras ficam na memoria"), publicou por MQTT e foi dormir. Senha MQTT errada foi recusada pelo broker (rc=4) até corrigirmos. Pendente: remover o sensor e trocar o SSID.',
+    'Parcial. Com o HTTPS (versão antiga) falhando, o ESP32 não travou: guardou a leitura na memória ("1 leituras ficam na memoria"), publicou por MQTT e foi dormir. Senha MQTT errada foi recusada pelo broker (rc=4) até corrigirmos. Pendente: remover o sensor e trocar o SSID.',
     'Parcial. Observado: o ESP32 reiniciou sozinho no primeiro boot (assert, antes de o NTP sincronizar), voltou a operar e fez ciclos de deep sleep de 30 s sem intervenção. Pendente: parar e iniciar a simulação e conferir o id do último comando.',
     'Parcial. A credencial errada no broker foi recusada (rc=4) e o Worker recusa chamadas sem chave (401). Pendente: publicar comando com assinatura errada e reenviar comando antigo.',
     'Parcial. Foram observados vários ciclos de 30 s (~2 min) sem travar. Pendente: 10 min completos e conferência no D1.',
 ]
 tests = [
-    'Rodar o DHT22 e o LED separadamente, depois o MQTT e o HTTPS (curl na rota); conferir cada um no Serial.',
+    'Rodar o DHT22 e o LED separadamente, depois o MQTT e a gravação no D1 (curl na rota, com a chave); conferir cada um no Serial.',
     'Subir a umidade para 71 % (liga), baixá-la para 66 % (continua ligado) e para 64 % (desliga após o tempo mínimo); repetir com a temperatura em 31 e 27 °C.',
     'Remover o fio SDA do DHT22: o ventilador deve desligar e, após 3 ciclos, chegar o alerta falha_sensor. Trocar o SSID por um errado: o ventilador continua decidindo e as leituras são enviadas ao voltar.',
     'Reiniciar o ESP32 (Stop/Start): o ventilador deve voltar ao estado coerente com a leitura; o id do último comando persiste (anti-repetição).',
@@ -231,7 +231,7 @@ _head = next(p for p in d.paragraphs if p.text.strip().startswith('ETAPA 10'))
 _cap_model = T[20].rows[1].cells[1].paragraphs[0]
 _prints = [
     ('docs/prints/01_wokwi_serial_mqtt.png', 4.6,
-     'Wokwi: DHT22 lendo 24 °C e 60 %, Wi-Fi e NTP ok e MQTT conectado ao broker com TLS. O HTTPS do ESP32 ao Worker ainda falha no simulador (SSL EOF), então o ESP32 segue com os limites padrão.'),
+     'Wokwi: DHT22 lendo 24 °C e 60 %, Wi-Fi e NTP ok e MQTT conectado ao broker com TLS (print de antes da mudança para o envio do histórico por MQTT; o HTTPS direto do ESP32 ao Worker falhava no simulador com SSL EOF).'),
     ('docs/prints/02_emqx_broker_rodando.png', 6.0,
      'EMQX Serverless: broker "Running", limite de gasto US$ 0,00 e 1 sessão ativa (o ESP32 conectado).'),
     ('docs/prints/03_emqx_usuarios.png', 6.0,
