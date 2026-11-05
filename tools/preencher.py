@@ -36,7 +36,7 @@ def row_vals(t, ri, vals, start=0):
 # ---- capa
 put(T[0].rows[0].cells[1], 'Kauã Fardin e Héric Rian')
 put(T[0].rows[1].cells[1], 'Opção A — Silo de grãos')
-put(T[0].rows[2].cells[1], 'https://github.com/SEU-USUARIO/silo-graos   (trocar pelo link real do repositório)')
+put(T[0].rows[2].cells[1], 'https://github.com/kauafardin/G2-IOT')
 
 # ---- etapa 0
 put(T[4].rows[0].cells[1], 'Opção A — Silo de grãos.')
@@ -193,6 +193,38 @@ tests = [
 ]
 for i, tx in enumerate(tests, 1):
     row_vals(T[20], i, [tx, resultados[i - 1]], 1)
+
+# ---- limpeza: tira o que não é necessário na entrega (opção B, desafios não escolhidos, extra não escolhido)
+from docx.text.paragraph import Paragraph
+
+
+def _remove(el):
+    if el is not None and el.getparent() is not None:
+        el.getparent().remove(el)
+
+
+_body = d.element.body
+for _el in list(_body.iterchildren()):
+    if _el.tag.endswith('}p'):
+        _tx = Paragraph(_el, d).text.strip()
+        if _tx.startswith(('Escolham um caminho', 'Opção A — Desafios prontos', 'Opção B — Criem a ideia',
+                           'Escolham (ou sorteiem)', 'Frase da ideia: "Para [quem]')):
+            _remove(_el)
+
+for _tb in (T[2], T[3]):                      # tabela dos desafios prontos e da opção B
+    _nxt = _tb._tbl.getnext()
+    _remove(_tb._tbl)
+    if _nxt is not None and _nxt.tag.endswith('}p') and not Paragraph(_nxt, d).text.strip():
+        _remove(_nxt)
+
+for _row in list(T[16].rows):                  # extras: fica só o escolhido (Energia e autonomia)
+    if _row.cells[0].text.strip() == 'Tempo real':
+        _remove(_row._tr)
+
+for _p in T[4].rows[0].cells[0].paragraphs:    # rótulo do campo da Etapa 0
+    for _r in _p.runs:
+        if 'Desafio (A) ou ideia própria (B)' in _r.text:
+            _r.text = _r.text.replace('Desafio (A) ou ideia própria (B)', 'Desafio escolhido')
 
 d.save('docs/Trabalho_N2_Caderno_de_Projeto_Preenchido.docx')
 print('ok')
