@@ -51,4 +51,9 @@ abre('1793896703784-b1lj6e.jpg').crop((215, 35, 1075, 390)).save('docs/prints/07
 
 # 08: leituras no D1 (resultado do SELECT)
 abre('1793896989082-9snxfh.jpg').crop((210, 40, 1075, 330)).save('docs/prints/08_d1_leituras.png')
+# 09: painel com comando executado e ventilador LIGADO
+abre('1793897874394-raij7t.jpg').crop((290, 15, 1235, 490)).save('docs/prints/09_painel_comando_executado.png')
+
+# 10: Wokwi com LED aceso e estado restaurado da flash
+abre('1793897862088-4pwj7t.jpg').crop((552, 40, 1098, 462)).save('docs/prints/10_wokwi_led_ligado.png')
 print('ok')
