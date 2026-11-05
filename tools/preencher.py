@@ -34,7 +34,10 @@ def row_vals(t, ri, vals, start=0):
 
 
 # ---- capa
-put(T[0].rows[0].cells[1], 'Kauã Fardin e Héric Rian')
+put(T[0].rows[0].cells[1],
+    'Kauã Fardin e Héric Rian\n'
+    'Kauã Fardin: código do ESP32, nuvem (Worker, D1, KV) e painel.\n'
+    'Héric Rian: montagem do circuito no Wokwi, caderno e testes.')
 put(T[0].rows[1].cells[1], 'Opção A — Silo de grãos')
 put(T[0].rows[2].cells[1], 'https://github.com/kauafardin/G2-IOT')
 
@@ -177,11 +180,11 @@ for _img, _w in (('docs/arquitetura.png', 5.4), ('docs/wokwi_esquematico.png', 4
 RES = '☐ Ainda não executado. Preencher após rodar no Wokwi.'
 resultados = [
     'Funcionando de ponta a ponta: DHT22 lê 24 °C e 60 % → ESP32 decide e publica por MQTT com TLS → regra do EMQX → Worker → D1; o painel mostra a leitura, o resumo do D1 e envia comandos que só viram "executado" com o ack do ESP32. Conferido com SELECT no D1: 9 leituras gravadas (média 24 °C e 60 %). O Worker recusa gravação sem chave (HTTP 401). O HTTPS direto do ESP32 ao Worker falhou no simulador (SSL - EOF); por isso o histórico passou a ir pelo broker.',
-    'Observado no Serial, com a umidade do DHT22 alterada em sequência: 60 % → ventilador desligado; 75 % → LIGOU; 66 % → continuou ligado (histerese); 64 % → desligou depois do tempo mínimo. Ver o print 12. Pendente: repetir com a temperatura em 31 e 27 °C.',
-    'Sensor removido (ligação SDA retirada do diagrama): T=nan, ok=0 e o contador de falhas subiu (1, 2, 3...) com o ventilador DESLIGADO em todos os ciclos (estado seguro); a partir da 3ª falha saiu o alerta falha_sensor, que apareceu no painel (14:19:05). Sem rede: em vários ciclos o Wi-Fi do simulador não conectou e o ESP32 registrou "[WIFI] sem rede: opera sozinho", seguiu decidindo e dormiu. Pendente: confirmar o envio das leituras guardadas quando a rede volta (no Wokwi a memória RTC é apagada a cada despertar).',
-    'Observado: o Wokwi reinicia o ESP32 a cada despertar e apagava a memória RTC; por isso o estado (ventilador, modo manual e limites) também é salvo na flash (NVS). Depois do comando "ligar" o Serial mostra, a cada ciclo, "[NVS] estado restaurado: ventilador=1 modo=1" e "Dormindo 30 s (ventilador LIGADO)"; o LED fica aceso. Pendente: conferir o id do último comando após um Stop/Start.',
+    'Observado no Serial, com a umidade do DHT22 alterada em sequência: 60 % → ventilador desligado; 75 % → LIGOU; 66 % → continuou ligado (histerese); 64 % → desligou depois do tempo mínimo. Ver o print 12. Com a umidade em 60 % e a temperatura em sequência: 24 °C → desligado; 31 °C → LIGOU; 29 °C → continuou ligado (histerese); 27 °C → desligou depois do tempo mínimo (print 16).',
+    'Sensor removido (ligação SDA retirada do diagrama): T=nan, ok=0 e o contador de falhas subiu (1, 2, 3...) com o ventilador DESLIGADO em todos os ciclos (estado seguro); a partir da 3ª falha saiu o alerta falha_sensor, que apareceu no painel (14:19:05). Sem rede: em vários ciclos o Wi-Fi do simulador não conectou e o ESP32 registrou "[WIFI] sem rede: opera sozinho", seguiu decidindo e dormiu. Limitação do simulador: o reenvio das leituras guardadas quando a rede volta só se comprova em placa real, porque o Wokwi apaga a memória RTC a cada despertar.',
+    'Observado: o Wokwi reinicia o ESP32 a cada despertar e apagava a memória RTC; por isso o estado (ventilador, modo manual e limites) também é salvo na flash (NVS). Depois do comando "ligar" o Serial mostra, a cada ciclo, "[NVS] estado restaurado: ventilador=1 modo=1" e "Dormindo 30 s (ventilador LIGADO)"; o LED fica aceso. Limitação do simulador: ao parar e iniciar a simulação a flash é zerada, então o último id de comando não é preservado entre Stop/Start (entre despertares ele é preservado).',
     'Observado no Serial: comando com assinatura errada → "[CMD] assinatura invalida: descartado" (nada mudou); comando com assinatura válida mas id antigo, enviado depois de um comando válido → "[CMD] id repetido/antigo: descartado". Também: a credencial errada no broker foi recusada (rc=4) e o Worker recusa gravação sem chave (401). Observação: com a flash do simulador zerada, o primeiro comando de id antigo foi aceito, pois ainda não havia id gravado; a proteção vale a partir do primeiro comando válido.',
-    'Parcial. Vários ciclos de 30 s (mais de 2 min de simulação) sem travar e 9 leituras gravadas no D1. Pendente: os 10 min completos e a conferência de que não há leitura repetida.',
+    'Rodou por mais de uma hora de relógio (ciclos de 30 s do simulador, com os testes acima) sem travar. O D1 tem 76 leituras, as 76 com timestamp distinto (nenhuma repetida), cobrindo 56 minutos (print 15).',
 ]
 tests = [
     'Rodar o DHT22 e o LED separadamente, depois o MQTT e a gravação no D1 (curl na rota, com a chave); conferir cada um no Serial.',
@@ -256,6 +259,10 @@ _prints = [
      'Sensor removido (transcrição do Serial do Wokwi): leitura inválida, ventilador desligado por segurança e alerta falha_sensor.'),
     ('docs/prints/14_comando_falso.png', 6.0,
      'Comandos falsos (transcrição do Serial do Wokwi): assinatura inválida e id antigo são descartados; o comando válido do painel é executado.'),
+    ('docs/prints/16_teste_temperatura.png', 6.0,
+     'Teste de temperatura (transcrição do Serial do Wokwi): liga com 31 °C, continua ligado com 29 °C e desliga com 27 °C.'),
+    ('docs/prints/15_d1_sem_repeticao.png', 6.0,
+     'Cloudflare D1: 76 leituras com 76 timestamps distintos (nenhuma repetida) cobrindo 56 minutos.'),
     ('docs/prints/08_d1_leituras.png', 6.0,
      'Cloudflare D1: SELECT na tabela leituras mostrando 9 linhas gravadas (média 24 °C e 60 %), vindas do ESP32 pelo MQTT e pela regra do broker.'),
 ]

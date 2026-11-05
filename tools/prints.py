@@ -98,4 +98,16 @@ figura('Comandos falsos no Wokwi (transcrição do Serial)',
         '[CMD] ventilador_auto -> executado                    (comando válido do painel)',
         '[CMD] id repetido/antigo: descartado                  (assinatura válida, id antigo)'],
        'docs/prints/14_comando_falso.png', 1000)
+# 15: D1 sem leituras repetidas (resultado do SELECT)
+abre('1793900650529-xvlydl.jpg').crop((210, 40, 1075, 330)).save('docs/prints/15_d1_sem_repeticao.png')
+
+# 16: teste de temperatura (transcricao do Serial do Wokwi)
+figura('Teste de temperatura no Wokwi (transcrição do Serial; umidade fixa em 60 %)',
+       ['Temperatura 24 °C -> Dormindo 30 s (ventilador desligado)',
+        'Temperatura 31 °C -> Dormindo 30 s (ventilador LIGADO)',
+        'Temperatura 29 °C -> Dormindo 30 s (ventilador LIGADO)   [histerese]',
+        'Temperatura 27 °C -> ligado no 1º ciclo (tempo mínimo) e depois',
+        '                     Dormindo 30 s (ventilador desligado)',
+        'Regra: liga se T>30 °C; desliga só se U<65 % e T<28 °C, após o tempo mínimo.'],
+       'docs/prints/16_teste_temperatura.png')
 print('ok')
