@@ -180,7 +180,7 @@ resultados = [
     'Observado no Serial, com a umidade do DHT22 alterada em sequência: 60 % → ventilador desligado; 75 % → LIGOU; 66 % → continuou ligado (histerese); 64 % → desligou depois do tempo mínimo. Ver o print 12. Pendente: repetir com a temperatura em 31 e 27 °C.',
     'Sensor removido (ligação SDA retirada do diagrama): T=nan, ok=0 e o contador de falhas subiu (1, 2, 3...) com o ventilador DESLIGADO em todos os ciclos (estado seguro); a partir da 3ª falha saiu o alerta falha_sensor, que apareceu no painel (14:19:05). Sem rede: em vários ciclos o Wi-Fi do simulador não conectou e o ESP32 registrou "[WIFI] sem rede: opera sozinho", seguiu decidindo e dormiu. Pendente: confirmar o envio das leituras guardadas quando a rede volta (no Wokwi a memória RTC é apagada a cada despertar).',
     'Observado: o Wokwi reinicia o ESP32 a cada despertar e apagava a memória RTC; por isso o estado (ventilador, modo manual e limites) também é salvo na flash (NVS). Depois do comando "ligar" o Serial mostra, a cada ciclo, "[NVS] estado restaurado: ventilador=1 modo=1" e "Dormindo 30 s (ventilador LIGADO)"; o LED fica aceso. Pendente: conferir o id do último comando após um Stop/Start.',
-    'Parcial. A credencial errada no broker foi recusada (rc=4) e o Worker recusa chamadas sem chave (401). Os comandos com assinatura inválida e com id antigo foram publicados pelo painel, mas o Wi-Fi do simulador estava caindo e o descarte ainda não foi visto no Serial. Pendente.',
+    'Observado no Serial: comando com assinatura errada → "[CMD] assinatura invalida: descartado" (nada mudou); comando com assinatura válida mas id antigo, enviado depois de um comando válido → "[CMD] id repetido/antigo: descartado". Também: a credencial errada no broker foi recusada (rc=4) e o Worker recusa gravação sem chave (401). Observação: com a flash do simulador zerada, o primeiro comando de id antigo foi aceito, pois ainda não havia id gravado; a proteção vale a partir do primeiro comando válido.',
     'Parcial. Vários ciclos de 30 s (mais de 2 min de simulação) sem travar e 9 leituras gravadas no D1. Pendente: os 10 min completos e a conferência de que não há leitura repetida.',
 ]
 tests = [
@@ -254,6 +254,8 @@ _prints = [
      'Teste dos limites (transcrição do Serial do Wokwi): liga com 75 %, continua ligado com 66 % e desliga com 64 %.'),
     ('docs/prints/13_sensor_falha_alerta.png', 6.0,
      'Sensor removido (transcrição do Serial do Wokwi): leitura inválida, ventilador desligado por segurança e alerta falha_sensor.'),
+    ('docs/prints/14_comando_falso.png', 6.0,
+     'Comandos falsos (transcrição do Serial do Wokwi): assinatura inválida e id antigo são descartados; o comando válido do painel é executado.'),
     ('docs/prints/08_d1_leituras.png', 6.0,
      'Cloudflare D1: SELECT na tabela leituras mostrando 9 linhas gravadas (média 24 °C e 60 %), vindas do ESP32 pelo MQTT e pela regra do broker.'),
 ]

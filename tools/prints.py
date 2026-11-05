@@ -92,4 +92,10 @@ figura('Sensor removido no Wokwi (transcrição do Serial)',
         '          desligado por seguranca"}',
         '[WIFI] sem rede: opera sozinho, historico fica na memoria'],
        'docs/prints/13_sensor_falha_alerta.png')
+# 14: comando falso (transcricao do Serial do Wokwi)
+figura('Comandos falsos no Wokwi (transcrição do Serial)',
+       ['[CMD] assinatura invalida: descartado                 (assinatura errada)',
+        '[CMD] ventilador_auto -> executado                    (comando válido do painel)',
+        '[CMD] id repetido/antigo: descartado                  (assinatura válida, id antigo)'],
+       'docs/prints/14_comando_falso.png', 1000)
 print('ok')
