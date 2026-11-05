@@ -203,8 +203,7 @@ void aplicaConfig(byte* payload, unsigned int len) {
   if (ul > 0 && ul <= 100 && ud > 0 && ud < ul && tl > 0 && tl < 60 && td > 0 && td < tl) {
     umidLiga = ul; umidDesliga = ud; tLiga = tl; tDesliga = td;
     configMudou = true;
-    Serial.printf("[CFG] liga>%.0f%%/%.0fC desliga<%.0f%%/%.0fC
-", umidLiga, tLiga, umidDesliga, tDesliga);
+    Serial.printf("[CFG] liga>%.0f%%/%.0fC desliga<%.0f%%/%.0fC\n", umidLiga, tLiga, umidDesliga, tDesliga);
   } else {
     Serial.println("[CFG] limites invalidos: ignorados");
   }
@@ -291,8 +290,7 @@ void enviaHistorico() {
     memmove(&buf[0], &buf[enviadas], sizeof(Leitura) * (bufN - enviadas));
     bufN -= enviadas;
   }
-  Serial.printf("[MQTT] %d leituras enviadas (restam %d)
-", enviadas, bufN);
+  Serial.printf("[MQTT] %d leituras enviadas (restam %d)\n", enviadas, bufN);
 }
 
 bool conectaWifi() {
