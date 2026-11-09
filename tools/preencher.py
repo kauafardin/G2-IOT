@@ -34,10 +34,7 @@ def row_vals(t, ri, vals, start=0):
 
 
 # ---- capa
-put(T[0].rows[0].cells[1],
-    'Kauã Fardin e Héric Rian\n'
-    'Kauã Fardin: código do ESP32, nuvem (Worker, D1, KV) e painel.\n'
-    'Héric Rian: montagem do circuito no Wokwi, caderno e testes.')
+put(T[0].rows[0].cells[1], 'Kauã Fardin e Héric Rian')
 put(T[0].rows[1].cells[1], 'Opção A — Silo de grãos')
 put(T[0].rows[2].cells[1], 'https://github.com/kauafardin/G2-IOT')
 
